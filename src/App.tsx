@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Stage, Layer, Image as KonvaImage, Transformer } from "react-konva";
+import type Konva from "konva";
+import useImage from "use-image";
 
 const backgrounds = [
   "/backgrounds/bg1.jpg",
@@ -10,6 +13,23 @@ const backgrounds = [
 function App() {
   const [image, setImage] = useState<string | null>(null);
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
+  const [bgImage] = useImage(selectedBg ?? "", "anonymous");
+  const [photoImage] = useImage(image ?? "", "anonymous");
+  const [photoProps, setPhotoProps] = useState({
+    x: 50,
+    y: 50,
+    width: 200,
+    height: 266,
+  });
+  const imageRef = useRef<Konva.Image>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+
+  useEffect(() => {
+    if (photoImage && imageRef.current && transformerRef.current) {
+      transformerRef.current.nodes([imageRef.current]);
+      transformerRef.current.getLayer()?.batchDraw();
+    }
+  }, [photoImage]);
 
   const removeBackground = async (file: File): Promise<string> => {
     const formData = new FormData();
@@ -33,34 +53,18 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white flex flex-col items-center justify-center px-4 py-12">
-      <div className="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-8">
-        <h1 className="text-4xl font-bold text-orange-600 text-center mb-6">Hermès Photo Booth</h1>
+    <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
+      <div className="max-w-5xl w-full bg-white rounded-2xl shadow-xl p-6">
+        <h1 className="text-3xl font-bold text-orange-600 text-center mb-6">
+          Hermès Photo Booth
+        </h1>
 
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Sidebar for background options */}
-          <div className="w-full md:w-1/3">
-            <p className="text-sm text-gray-500 mb-2">Choose a background:</p>
-            <div className="grid grid-cols-3 gap-2">
-              {backgrounds.map((bg, index) => (
-                <img
-                  key={index}
-                  src={bg}
-                  alt={`Background ${index + 1}`}
-                  onClick={() => setSelectedBg(bg)}
-                  className={`h-20 w-full object-cover rounded-md cursor-pointer border-4 ${
-                    selectedBg === bg ? "border-orange-500" : "border-transparent"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Preview Area */}
-          <div className="w-full md:w-2/3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Sidebar */}
+          <div className="space-y-4">
             <label
               htmlFor="image-upload"
-              className="cursor-pointer inline-block px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition mb-4"
+              className="cursor-pointer block text-center px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition"
             >
               Upload Photo
               <input
@@ -72,22 +76,89 @@ function App() {
               />
             </label>
 
-            <div className="relative w-full aspect-[3/4] border rounded-xl overflow-hidden shadow-md bg-gray-100">
-              {selectedBg && (
+            <p className="text-sm text-gray-600">Choose Background:</p>
+            <div className="grid grid-cols-3 gap-2">
+              {backgrounds.map((bg, index) => (
                 <img
-                  src={selectedBg}
-                  alt="Selected background"
-                  className="absolute top-0 left-0 w-full h-full object-cover"
+                  key={index}
+                  src={bg}
+                  onClick={() => setSelectedBg(bg)}
+                  className={`h-16 w-full object-cover rounded-md border-4 cursor-pointer ${
+                    selectedBg === bg
+                      ? "border-orange-500"
+                      : "border-transparent"
+                  }`}
                 />
-              )}
-              {image && (
-                <img
-                  src={image}
-                  alt="User photo"
-                  className="absolute top-0 left-0 w-full h-full object-contain pointer-events-none"
-                />
-              )}
+              ))}
             </div>
+          </div>
+
+          {/* Canvas Area */}
+          <div className="col-span-2 bg-gray-100 rounded-xl shadow aspect-[3/4] w-full">
+            <Stage width={400} height={533}>
+              <Layer>
+                {bgImage && (
+                  <KonvaImage
+                    image={bgImage}
+                    x={0}
+                    y={0}
+                    width={400}
+                    height={533}
+                  />
+                )}
+                {photoImage && (
+                  <>
+                    <KonvaImage
+                      image={photoImage}
+                      ref={imageRef}
+                      x={photoProps.x}
+                      y={photoProps.y}
+                      width={photoProps.width}
+                      height={photoProps.height}
+                      draggable
+                      onDragEnd={(e) =>
+                        setPhotoProps((prev) => ({
+                          ...prev,
+                          x: e.target.x(),
+                          y: e.target.y(),
+                        }))
+                      }
+                      onTransformEnd={() => {
+                        const node = imageRef.current;
+                        if (!node) return;
+
+                        const scaleX = node.scaleX();
+                        const scaleY = node.scaleY();
+
+                        node.scaleX(1);
+                        node.scaleY(1);
+
+                        setPhotoProps({
+                          x: node.x(),
+                          y: node.y(),
+                          width: Math.max(100, node.width() * scaleX),
+                          height: Math.max(133, node.height() * scaleY),
+                        });
+                      }}
+                    />
+                    <Transformer
+                      ref={transformerRef}
+                      boundBoxFunc={(oldBox, newBox) => {
+                        if (
+                          newBox.width < 100 ||
+                          newBox.height < 133 ||
+                          newBox.width > 500 ||
+                          newBox.height > 666
+                        ) {
+                          return oldBox;
+                        }
+                        return newBox;
+                      }}
+                    />
+                  </>
+                )}
+              </Layer>
+            </Stage>
           </div>
         </div>
       </div>
