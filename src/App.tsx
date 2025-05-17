@@ -1,30 +1,32 @@
 import { useLayoutEffect, useEffect, useRef, useState } from "react";
-import { Stage, Layer, Rect, Image as KonvaImage, Text } from "react-konva";
+import { QRCodeCanvas } from "qrcode.react";
 import useImage from "use-image";
+import Konva from "konva";
+import { Stage, Layer, Rect, Image as KonvaImage, Text } from "react-konva";
+
 import { StickerImage } from "./components/StickerImage";
 import type { Sticker } from "./components/StickerImage";
 import { getCoverSize } from "./utils/layout";
-import { QRCodeCanvas } from "qrcode.react";
-import Konva from "konva";
 import { uploadToFastApi } from "./services/uploadToFastApi";
-// import { uploadImage } from "./services/uploadToSupabase";
-// import { uploadToImgur } from "./services/uploadToImgur";
+import { CameraScreen } from "./components/CameraScreen";
+import { ReviewScreen } from "./components/ReviewScreen";
 
-const backgrounds = [
-  "/backgrounds/bg1.jpg",
-  "/backgrounds/bg2.jpg",
-  "/backgrounds/bg3.jpg",
-  "/backgrounds/bg4.jpg",
-];
+const backgrounds = ["/backgrounds/bg1.jpg", "/backgrounds/bg2.jpg", "/backgrounds/bg3.jpg", "/backgrounds/bg4.jpg"];
 
-type Screen = "landing" | "preview" | "result";
+type Screen =
+  | "welcome"
+  | "camera"
+  | "review"
+  | "remove-bg"
+  | "select-bg"
+  | "stickers"
+  | "final";
 
 function App() {
-  const [screen, setScreen] = useState<Screen>("landing");
+  const [screen, setScreen] = useState<Screen>("welcome");
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
   const [bgImage] = useImage(selectedBg ?? "", "anonymous");
 
-  const [liveImage, setLiveImage] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [photoImage] = useImage(capturedImage ?? "", "anonymous");
 
@@ -35,11 +37,13 @@ function App() {
   const [qrVisible, setQrVisible] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [retakeIndexes, setRetakeIndexes] = useState<number[] | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 400, height: 533 });
   const [canvasKey, setCanvasKey] = useState(0);
-  // const IMGUR_CLIENT_ID = "2e7780e372f7b37";
 
   useLayoutEffect(() => {
     const updateSize = () => {
@@ -71,97 +75,20 @@ function App() {
     canvasSize.height,
   ]);
 
-  const getPhotoProps = () => {
-    const width = canvasSize.width * 0.6;
-    const height = canvasSize.height * 0.6;
-    const x = (canvasSize.width - width) / 2;
-    const y = (canvasSize.height - height) / 2;
-    return { width, height, x, y };
+  const handleRetakePhotos = (indexes: number[]) => {
+    setRetakeIndexes(indexes);
+    setScreen("camera");
   };
 
-  const addSticker = (src: string) => {
-    const newSticker: Sticker = {
-      id: crypto.randomUUID(),
-      src,
-      x: canvasSize.width / 2 - 50,
-      y: canvasSize.height / 2 - 50,
-      scale: 1,
-      rotation: 0,
-    };
-    setStickers((prev) => [...prev, newSticker]);
-  };
-
-  const removeBackground = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("http://localhost:8000/remove-bg", {
-      method: "POST",
-      body: formData,
+  const handleRetakeConfirm = (newShots: string[]) => {
+    if (!retakeIndexes) return;
+    const updated = [...photos];
+    retakeIndexes.forEach((index, i) => {
+      updated[index] = newShots[i];
     });
-
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
-  };
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const url = await removeBackground(file);
-    setLiveImage(url);
-    setScreen("preview");
-  };
-
-  const handleCapture = () => {
-    let seconds = 5;
-    setCountdown(seconds);
-
-    const interval = setInterval(() => {
-      seconds -= 1;
-      setCountdown(seconds);
-      if (seconds === 0) {
-        clearInterval(interval);
-        setCapturedImage(liveImage);
-        setCountdown(null);
-        setScreen("result");
-      }
-    }, 1000);
-  };
-
-  const handleRetake = () => {
-    setCapturedImage(null);
-    setLiveImage(null);
-    setSelectedBg(null);
-    setStickers([]);
-    setSelectedId(null);
-    setPhotoUrl(null);
-    setQrVisible(false);
-    setScreen("landing");
-  };
-
-  const handleDownload = () => {
-    const uri = stageRef.current?.toDataURL();
-    if (!uri) return;
-    const link = document.createElement("a");
-    link.download = "hermes-photo.png";
-    link.href = uri;
-    link.click();
-  };
-
-  const handleGenerateQR = async () => {
-    const uri = stageRef.current?.toDataURL({ mimeType: "image/png" });
-    if (!uri) return;
-
-    const blob = await (await fetch(uri)).blob();
-    const url = await uploadToFastApi(blob);
-
-    if (url) {
-      setPhotoUrl(url);
-      setQrVisible(true);
-    } else {
-      alert("Upload failed");
-    }
+    setPhotos(updated);
+    setRetakeIndexes(null);
+    setScreen("review");
   };
 
   return (
@@ -171,208 +98,38 @@ function App() {
           Hermès Photo Booth
         </h1>
 
-        {screen === "landing" && (
+        {screen === "welcome" && (
           <div className="text-center">
             <button
-              onClick={() => setScreen("preview")}
+              onClick={() => setScreen("camera")}
               className="text-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold px-10 py-4 rounded-xl shadow"
             >
-              📸 Take a Photo
+              Begin
             </button>
           </div>
         )}
 
-        {(screen === "preview" || screen === "result") && (
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="w-full md:w-1/3 space-y-4">
-              {screen === "preview" && (
-                <>
-                  <p className="text-sm text-gray-600 font-semibold">
-                    Choose Background:
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {backgrounds.map((bg, index) => (
-                      <img
-                        key={index}
-                        src={bg}
-                        onClick={() => setSelectedBg(bg)}
-                        className={`h-20 w-full object-cover rounded-md border-4 cursor-pointer ${
-                          selectedBg === bg
-                            ? "border-orange-500"
-                            : "border-transparent"
-                        }`}
-                      />
-                    ))}
-                  </div>
-
-                  <label className="block bg-orange-500 hover:bg-orange-600 text-white text-center py-2 rounded-xl cursor-pointer font-medium transition mt-6">
-                    Upload a Photo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUpload}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {liveImage && selectedBg && (
-                    <button
-                      onClick={handleCapture}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-xl font-semibold mt-4"
-                    >
-                      Take Picture
-                    </button>
-                  )}
-                </>
-              )}
-
-              {screen === "result" && (
-                <>
-                  <p className="text-sm text-gray-600 font-semibold">
-                    Add Stickers:
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {["hat.png", "glasses.png", "star.png", "horse.png"].map(
-                      (file) => (
-                        <img
-                          key={file}
-                          src={`/stickers/${file}`}
-                          onClick={() => addSticker(`/stickers/${file}`)}
-                          className="h-16 w-full object-contain border rounded-md cursor-pointer hover:border-orange-400"
-                        />
-                      )
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleDownload}
-                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-xl font-semibold mt-4"
-                  >
-                    💾 Save Image
-                  </button>
-
-                  <button
-                    onClick={handleGenerateQR}
-                    className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-xl font-semibold"
-                  >
-                    📱 Show QR Code
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div className="w-full md:w-2/3">
-              <div
-                ref={containerRef}
-                className="relative w-full aspect-[3/4] border rounded-xl overflow-hidden shadow bg-gray-100"
-              >
-                <Stage
-                  ref={stageRef}
-                  key={canvasKey}
-                  width={canvasSize.width}
-                  height={canvasSize.height}
-                  onMouseDown={(e) => {
-                    const clickedOnEmpty = e.target === e.target.getStage();
-                    if (clickedOnEmpty) setSelectedId(null);
-                  }}
-                >
-                  <Layer>
-                    <Rect
-                      width={canvasSize.width}
-                      height={canvasSize.height}
-                      fill="transparent"
-                      listening={true}
-                      onMouseDown={() => setSelectedId(null)}
-                      onTouchStart={() => setSelectedId(null)}
-                    />
-
-                    {bgImage &&
-                      (() => {
-                        const { width, height, offsetX, offsetY } =
-                          getCoverSize(
-                            canvasSize.width,
-                            canvasSize.height,
-                            bgImage.width,
-                            bgImage.height
-                          );
-                        return (
-                          <KonvaImage
-                            image={bgImage}
-                            x={offsetX}
-                            y={offsetY}
-                            width={width}
-                            height={height}
-                            listening={false}
-                          />
-                        );
-                      })()}
-
-                    {(screen === "preview" ? liveImage : capturedImage) && (
-                      <KonvaImage
-                        image={photoImage}
-                        {...getPhotoProps()}
-                        listening={false}
-                      />
-                    )}
-
-                    {screen === "result" &&
-                      stickers.map((sticker) => (
-                        <StickerImage
-                          key={sticker.id}
-                          sticker={sticker}
-                          isSelected={sticker.id === selectedId}
-                          onSelect={() => setSelectedId(sticker.id)}
-                          onDelete={() =>
-                            setStickers((prev) =>
-                              prev.filter((s) => s.id !== sticker.id)
-                            )
-                          }
-                          onChange={(newProps) =>
-                            setStickers((prev) =>
-                              prev.map((s) =>
-                                s.id === sticker.id ? { ...s, ...newProps } : s
-                              )
-                            )
-                          }
-                        />
-                      ))}
-
-                    {countdown !== null && (
-                      <Text
-                        text={`${countdown}`}
-                        fontSize={80}
-                        fill="white"
-                        stroke="black"
-                        strokeWidth={2}
-                        x={canvasSize.width / 2 - 20}
-                        y={canvasSize.height / 2 - 40}
-                      />
-                    )}
-                  </Layer>
-                </Stage>
-
-                {qrVisible && photoUrl && (
-                  <div className="absolute bottom-2 right-2 bg-white p-2 rounded shadow">
-                    <p className="text-xs text-center text-gray-500 mb-1">
-                      Scan to download
-                    </p>
-                    <QRCodeCanvas value={photoUrl} size={100} />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        {screen === "camera" && (
+          <CameraScreen
+            onCaptureComplete={(captured) => {
+              if (retakeIndexes) {
+                handleRetakeConfirm(captured);
+              } else {
+                setPhotos(captured);
+                setScreen("review");
+              }
+            }}
+          />
         )}
 
-        {screen === "result" && (
-          <div className="text-center mt-4">
-            <button
-              onClick={handleRetake}
-              className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-6 rounded-xl font-semibold"
-            >
-              🔁 Retake Photo
-            </button>
-          </div>
+        {screen === "review" && (
+          <ReviewScreen
+            photos={photos}
+            onRetake={handleRetakePhotos}
+            onConfirm={() => {
+              setScreen("remove-bg"); // next step to implement
+            }}
+          />
         )}
       </div>
     </div>
