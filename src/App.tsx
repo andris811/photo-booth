@@ -4,6 +4,8 @@ import useImage from "use-image";
 import { StickerImage } from "./components/StickerImage";
 import type { Sticker } from "./components/StickerImage";
 import { getCoverSize } from "./utils/layout";
+import { QRCodeCanvas } from "qrcode.react";
+import Konva from "konva";
 
 const backgrounds = [
   "/backgrounds/bg1.jpg",
@@ -27,7 +29,11 @@ function App() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const [qrVisible, setQrVisible] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 400, height: 533 });
   const [canvasKey, setCanvasKey] = useState(0);
 
@@ -125,8 +131,26 @@ function App() {
     setSelectedBg(null);
     setStickers([]);
     setSelectedId(null);
+    setPhotoUrl(null);
+    setQrVisible(false);
     setScreen("landing");
   };
+
+  const handleDownload = () => {
+    const uri = stageRef.current?.toDataURL();
+    if (!uri) return;
+    const link = document.createElement("a");
+    link.download = "hermes-photo.png";
+    link.href = uri;
+    link.click();
+  };
+
+  const handleGenerateQR = () => {
+  const uri = stageRef.current?.toDataURL();
+  if (!uri) return;
+  alert("QR code can't be generated from base64. Please host the image first.");
+};
+
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
@@ -205,6 +229,20 @@ function App() {
                       />
                     ))}
                   </div>
+
+                  <button
+                    onClick={handleDownload}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-xl font-semibold mt-4"
+                  >
+                    💾 Save Image
+                  </button>
+
+                  <button
+                    onClick={handleGenerateQR}
+                    className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-xl font-semibold"
+                  >
+                    📱 Show QR Code
+                  </button>
                 </>
               )}
             </div>
@@ -215,6 +253,7 @@ function App() {
                 className="relative w-full aspect-[3/4] border rounded-xl overflow-hidden shadow bg-gray-100"
               >
                 <Stage
+                  ref={stageRef}
                   key={canvasKey}
                   width={canvasSize.width}
                   height={canvasSize.height}
@@ -291,6 +330,13 @@ function App() {
                     )}
                   </Layer>
                 </Stage>
+
+                {qrVisible && photoUrl && (
+                  <div className="absolute bottom-2 right-2 bg-white p-2 rounded shadow">
+                    <p className="text-xs text-center text-gray-500 mb-1">Scan to download</p>
+                    <QRCodeCanvas value={photoUrl} size={100} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
