@@ -10,6 +10,7 @@ export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
   const webcamRef = useRef<Webcam>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [capturing, setCapturing] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
     if (webcamRef.current?.video) {
@@ -40,7 +41,12 @@ export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
             clearInterval(interval);
             const image = webcamRef.current?.getScreenshot();
             if (image) photos.push(image);
-            resolve();
+            // 👇 Flash effect
+            setFlash(true);
+            setTimeout(() => setFlash(false), 200);
+
+            // 👇 Add short delay before next countdown
+            setTimeout(resolve, 900);
           }
         }, 1000);
       });
@@ -68,6 +74,11 @@ export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
           }}
           className="absolute inset-0 w-full h-full object-cover"
         />
+
+        {/* Flash overlay */}
+        {flash && (
+          <div className="absolute inset-0 bg-white opacity-70 transition duration-200 pointer-events-none"></div>
+        )}
       </div>
 
       {countdown !== null ? (
