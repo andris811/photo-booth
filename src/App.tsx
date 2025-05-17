@@ -146,11 +146,12 @@ function App() {
   };
 
   const handleGenerateQR = () => {
-  const uri = stageRef.current?.toDataURL();
-  if (!uri) return;
-  alert("QR code can't be generated from base64. Please host the image first.");
-};
-
+    const uri = stageRef.current?.toDataURL();
+    if (!uri) return;
+    alert(
+      "QR code can't be generated from base64. Please host the image first."
+    );
+  };
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
@@ -220,14 +221,16 @@ function App() {
                     Add Stickers:
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {["hat.png", "glasses.png", "star.png", "horse.png"].map((file) => (
-                      <img
-                        key={file}
-                        src={`/stickers/${file}`}
-                        onClick={() => addSticker(`/stickers/${file}`)}
-                        className="h-16 w-full object-contain border rounded-md cursor-pointer hover:border-orange-400"
-                      />
-                    ))}
+                    {["hat.png", "glasses.png", "star.png", "horse.png"].map(
+                      (file) => (
+                        <img
+                          key={file}
+                          src={`/stickers/${file}`}
+                          onClick={() => addSticker(`/stickers/${file}`)}
+                          className="h-16 w-full object-contain border rounded-md cursor-pointer hover:border-orange-400"
+                        />
+                      )
+                    )}
                   </div>
 
                   <button
@@ -257,14 +260,19 @@ function App() {
                   key={canvasKey}
                   width={canvasSize.width}
                   height={canvasSize.height}
+                  onMouseDown={(e) => {
+                    const clickedOnEmpty = e.target === e.target.getStage();
+                    if (clickedOnEmpty) setSelectedId(null);
+                  }}
                 >
                   <Layer>
                     <Rect
                       width={canvasSize.width}
                       height={canvasSize.height}
                       fill="transparent"
-                      onClick={() => setSelectedId(null)}
-                      onTap={() => setSelectedId(null)}
+                      listening={true}
+                      onMouseDown={() => setSelectedId(null)}
+                      onTouchStart={() => setSelectedId(null)}
                     />
 
                     {bgImage &&
@@ -283,6 +291,7 @@ function App() {
                             y={offsetY}
                             width={width}
                             height={height}
+                            listening={false}
                           />
                         );
                       })()}
@@ -333,7 +342,9 @@ function App() {
 
                 {qrVisible && photoUrl && (
                   <div className="absolute bottom-2 right-2 bg-white p-2 rounded shadow">
-                    <p className="text-xs text-center text-gray-500 mb-1">Scan to download</p>
+                    <p className="text-xs text-center text-gray-500 mb-1">
+                      Scan to download
+                    </p>
                     <QRCodeCanvas value={photoUrl} size={100} />
                   </div>
                 )}

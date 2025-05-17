@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Group, Image as KonvaImage, Transformer, Circle, Text } from "react-konva";
+import {
+  Group,
+  Image as KonvaImage,
+  Transformer,
+  Circle,
+  Text,
+} from "react-konva";
 import useImage from "use-image";
 import Konva from "konva";
 
@@ -20,7 +26,13 @@ type Props = {
   onChange: (newProps: Partial<Sticker>) => void;
 };
 
-export function StickerImage({ sticker, isSelected, onSelect, onDelete, onChange }: Props) {
+export function StickerImage({
+  sticker,
+  isSelected,
+  onSelect,
+  onDelete,
+  onChange,
+}: Props) {
   const [image] = useImage(sticker.src, "anonymous");
   const groupRef = useRef<Konva.Group | null>(null);
   const trRef = useRef<Konva.Transformer | null>(null);
@@ -106,7 +118,12 @@ export function StickerImage({ sticker, isSelected, onSelect, onDelete, onChange
         <Transformer
           ref={trRef}
           rotateEnabled
-          enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+          enabledAnchors={[
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+          ]}
           boundBoxFunc={(oldBox, newBox) =>
             newBox.width < 30 || newBox.height < 30 ? oldBox : newBox
           }
