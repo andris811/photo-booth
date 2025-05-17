@@ -1,3 +1,4 @@
+// ... existing imports
 import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import useImage from "use-image";
@@ -31,6 +32,7 @@ function App() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
   const [bgImage] = useImage(selectedBg ?? "", "anonymous");
+  const [cleanPhotos, setCleanPhotos] = useState<string[]>([]);
 
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [photoImage] = useImage(capturedImage ?? "", "anonymous");
@@ -96,6 +98,37 @@ function App() {
     setScreen("review");
   };
 
+  const removeBackgroundFromBase64 = async (
+    base64: string
+  ): Promise<string> => {
+    const blob = await (await fetch(base64)).blob();
+    const formData = new FormData();
+    formData.append("file", blob, "photo.png");
+
+    const response = await fetch("http://localhost:8000/remove-bg", {
+      method: "POST",
+      body: formData,
+    });
+
+    const resultBlob = await response.blob();
+    return URL.createObjectURL(resultBlob);
+  };
+
+  // 🔁 RUN BACKGROUND REMOVAL PIPELINE
+  useEffect(() => {
+    if (screen === "remove-bg" && photos.length > 0) {
+      (async () => {
+        const cleaned: string[] = [];
+        for (const base64 of photos) {
+          const cleanedUrl = await removeBackgroundFromBase64(base64);
+          cleaned.push(cleanedUrl);
+        }
+        setCleanPhotos(cleaned);
+        setScreen("select-bg");
+      })();
+    }
+  }, [screen, photos]);
+
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl p-6">
@@ -116,10 +149,9 @@ function App() {
 
         {screen === "camera" && (
           <CameraScreen
-            count={retakeIndexes ? retakeIndexes.length : 4} // 👈 only retake what's selected
+            count={retakeIndexes ? retakeIndexes.length : 4}
             onCaptureComplete={(captured) => {
               if (retakeIndexes) {
-                // Only replace selected slots
                 const updated = [...photos];
                 retakeIndexes.forEach((index, i) => {
                   updated[index] = captured[i];
@@ -128,7 +160,6 @@ function App() {
                 setRetakeIndexes(null);
                 setScreen("review");
               } else {
-                // Initial capture
                 setPhotos(captured);
                 setScreen("review");
               }
@@ -140,10 +171,17 @@ function App() {
           <ReviewScreen
             photos={photos}
             onRetake={handleRetakePhotos}
-            onConfirm={() => {
-              setScreen("remove-bg"); // next step to implement
-            }}
+            onConfirm={() => setScreen("remove-bg")}
           />
+        )}
+
+        {screen === "remove-bg" && (
+          <div className="text-center space-y-4">
+            <p className="text-xl font-medium text-gray-600">
+              Removing Backgrounds...
+            </p>
+            <p className="text-sm text-gray-400">This may take a few seconds</p>
+          </div>
         )}
       </div>
     </div>
