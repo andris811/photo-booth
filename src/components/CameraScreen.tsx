@@ -3,9 +3,10 @@ import Webcam from "react-webcam";
 
 type Props = {
   onCaptureComplete: (photos: string[]) => void;
+  count?: number; // 👈 optional prop
 };
 
-export function CameraScreen({ onCaptureComplete }: Props) {
+export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
   const webcamRef = useRef<Webcam>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -27,7 +28,7 @@ export function CameraScreen({ onCaptureComplete }: Props) {
     setCapturing(true);
     const photos: string[] = [];
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < count; i++) {
       let sec = 5;
       setCountdown(sec);
 
@@ -77,7 +78,7 @@ export function CameraScreen({ onCaptureComplete }: Props) {
           onClick={captureSequence}
           className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl text-lg font-semibold"
         >
-          📸 Take 4 Photos
+          📸 Take {count} Photo{count > 1 ? "s" : ""}
         </button>
       )}
     </div>

@@ -11,7 +11,12 @@ import { uploadToFastApi } from "./services/uploadToFastApi";
 import { CameraScreen } from "./components/CameraScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
 
-const backgrounds = ["/backgrounds/bg1.jpg", "/backgrounds/bg2.jpg", "/backgrounds/bg3.jpg", "/backgrounds/bg4.jpg"];
+const backgrounds = [
+  "/backgrounds/bg1.jpg",
+  "/backgrounds/bg2.jpg",
+  "/backgrounds/bg3.jpg",
+  "/backgrounds/bg4.jpg",
+];
 
 type Screen =
   | "welcome"
@@ -111,10 +116,19 @@ function App() {
 
         {screen === "camera" && (
           <CameraScreen
+            count={retakeIndexes ? retakeIndexes.length : 4} // 👈 only retake what's selected
             onCaptureComplete={(captured) => {
               if (retakeIndexes) {
-                handleRetakeConfirm(captured);
+                // Only replace selected slots
+                const updated = [...photos];
+                retakeIndexes.forEach((index, i) => {
+                  updated[index] = captured[i];
+                });
+                setPhotos(updated);
+                setRetakeIndexes(null);
+                setScreen("review");
               } else {
+                // Initial capture
                 setPhotos(captured);
                 setScreen("review");
               }
