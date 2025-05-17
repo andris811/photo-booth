@@ -1,4 +1,3 @@
-// ... existing imports
 import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import useImage from "use-image";
@@ -11,13 +10,7 @@ import { getCoverSize } from "./utils/layout";
 import { uploadToFastApi } from "./services/uploadToFastApi";
 import { CameraScreen } from "./components/CameraScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
-
-const backgrounds = [
-  "/backgrounds/bg1.jpg",
-  "/backgrounds/bg2.jpg",
-  "/backgrounds/bg3.jpg",
-  "/backgrounds/bg4.jpg",
-];
+import { BackgroundSelection } from "./components/BackgroundSelection";
 
 type Screen =
   | "welcome"
@@ -114,20 +107,19 @@ function App() {
     return URL.createObjectURL(resultBlob);
   };
 
-  // 🔁 RUN BACKGROUND REMOVAL PIPELINE
   useEffect(() => {
-    if (screen === "remove-bg" && photos.length > 0) {
-      (async () => {
-        const cleaned: string[] = [];
-        for (const base64 of photos) {
-          const cleanedUrl = await removeBackgroundFromBase64(base64);
-          cleaned.push(cleanedUrl);
-        }
+    const processBackgrounds = async () => {
+      if (screen === "remove-bg" && cleanPhotos.length === 0) {
+        const cleaned = await Promise.all(
+          photos.map((photo) => removeBackgroundFromBase64(photo))
+        );
         setCleanPhotos(cleaned);
         setScreen("select-bg");
-      })();
-    }
-  }, [screen, photos]);
+      }
+    };
+
+    processBackgrounds();
+  }, [screen, photos, cleanPhotos.length]);
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
@@ -171,7 +163,9 @@ function App() {
           <ReviewScreen
             photos={photos}
             onRetake={handleRetakePhotos}
-            onConfirm={() => setScreen("remove-bg")}
+            onConfirm={() => {
+              setScreen("remove-bg");
+            }}
           />
         )}
 
@@ -182,6 +176,15 @@ function App() {
             </p>
             <p className="text-sm text-gray-400">This may take a few seconds</p>
           </div>
+        )}
+
+        {screen === "select-bg" && cleanPhotos.length === 4 && (
+          <BackgroundSelection
+            cleanPhotos={cleanPhotos}
+            selectedBg={selectedBg}
+            setSelectedBg={setSelectedBg}
+            onConfirm={() => setScreen("stickers")}
+          />
         )}
       </div>
     </div>
