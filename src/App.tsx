@@ -6,6 +6,9 @@ import type { Sticker } from "./components/StickerImage";
 import { getCoverSize } from "./utils/layout";
 import { QRCodeCanvas } from "qrcode.react";
 import Konva from "konva";
+import { uploadToFastApi } from "./services/uploadToFastApi";
+// import { uploadImage } from "./services/uploadToSupabase";
+// import { uploadToImgur } from "./services/uploadToImgur";
 
 const backgrounds = [
   "/backgrounds/bg1.jpg",
@@ -36,6 +39,7 @@ function App() {
   const stageRef = useRef<Konva.Stage | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 400, height: 533 });
   const [canvasKey, setCanvasKey] = useState(0);
+  // const IMGUR_CLIENT_ID = "2e7780e372f7b37";
 
   useLayoutEffect(() => {
     const updateSize = () => {
@@ -145,12 +149,19 @@ function App() {
     link.click();
   };
 
-  const handleGenerateQR = () => {
-    const uri = stageRef.current?.toDataURL();
+  const handleGenerateQR = async () => {
+    const uri = stageRef.current?.toDataURL({ mimeType: "image/png" });
     if (!uri) return;
-    alert(
-      "QR code can't be generated from base64. Please host the image first."
-    );
+
+    const blob = await (await fetch(uri)).blob();
+    const url = await uploadToFastApi(blob);
+
+    if (url) {
+      setPhotoUrl(url);
+      setQrVisible(true);
+    } else {
+      alert("Upload failed");
+    }
   };
 
   return (
