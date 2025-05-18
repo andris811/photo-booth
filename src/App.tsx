@@ -1,12 +1,17 @@
-import { useLayoutEffect, useEffect, useRef, useState } from "react";
-import { QRCodeCanvas } from "qrcode.react";
+import {
+  useLayoutEffect,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { uploadToFastApi } from "./services/uploadToFastApi";
 import { CameraScreen } from "./components/CameraScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
 import { BackgroundSelection } from "./components/BackgroundSelection";
 import { cropCenterPortrait } from "./utils/imageUtils";
 import { StickerOverlay } from "./components/StickerOverlay";
-import { FinalCanvas } from "./components/FinalCanvas";
+import { FinalScreen } from "./components/FinalScreen";
 import type { Sticker } from "./components/StickerImage";
 import Konva from "konva";
 
@@ -25,7 +30,6 @@ function App() {
   const [cleanPhotos, setCleanPhotos] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [retakeIndexes, setRetakeIndexes] = useState<number[] | null>(null);
-
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -58,12 +62,10 @@ function App() {
     const blob = await (await fetch(base64)).blob();
     const formData = new FormData();
     formData.append("file", blob, "photo.png");
-
     const response = await fetch("http://localhost:8000/remove-bg", {
       method: "POST",
       body: formData,
     });
-
     const resultBlob = await response.blob();
     return URL.createObjectURL(resultBlob);
   };
@@ -85,18 +87,17 @@ function App() {
     }
   }, [screen, photos, cleanPhotos.length]);
 
-  useEffect(() => {
-  if (screen === "final" && !photoUrl) {
-    const timeout = setTimeout(() => {
-      handleGenerateQR();
-    }, 500); // short delay to let <FinalCanvas /> paint
-
-    return () => clearTimeout(timeout);
-  }
-}, [screen, photoUrl]);
+  const exportHighResDataUrl = (scale: number = 3) => {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    return stage.toDataURL({
+      mimeType: "image/png",
+      pixelRatio: scale,
+    });
+  };
 
   const handleDownload = () => {
-    const uri = stageRef.current?.toDataURL({ mimeType: "image/png" });
+    const uri = exportHighResDataUrl(3);
     if (!uri) return;
     const link = document.createElement("a");
     link.href = uri;
@@ -104,14 +105,28 @@ function App() {
     link.click();
   };
 
-  const handleGenerateQR = async () => {
-    const uri = stageRef.current?.toDataURL({ mimeType: "image/png" });
-    if (!uri) return;
+  const handleGenerateQR = useCallback(async () => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    // Create high-res image (3x scale)
+    const uri = stage.toDataURL({ mimeType: "image/png", pixelRatio: 3 });
     const blob = await (await fetch(uri)).blob();
+
     const url = await uploadToFastApi(blob);
     if (url) setPhotoUrl(url);
     else alert("Upload failed.");
-  };
+  }, []);
+
+  useEffect(() => {
+    if (screen === "final" && !photoUrl) {
+      const timeout = setTimeout(() => {
+        handleGenerateQR();
+      }, 500);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [screen, photoUrl, handleGenerateQR]);
 
   const handleRetake = () => {
     setScreen("welcome");
@@ -195,49 +210,25 @@ function App() {
             selectedId={selectedId}
             setSelectedId={setSelectedId}
             onConfirm={() => {
-              handleGenerateQR(); // prepare QR before final
+              handleGenerateQR(); // Generate QR before entering final screen
               setScreen("final");
             }}
             onBack={() => setScreen("select-bg")}
-            stageWrapperRef={{ current: null }} // deprecated, no longer used
+            stageWrapperRef={{ current: null }} // deprecated but retained for prop compatibility
           />
         )}
 
         {screen === "final" && selectedBg && (
-          <div className="flex flex-col gap-6 items-center">
-            <div className="flex flex-col md:flex-row gap-6 w-full items-start">
-              <div className="rounded-xl overflow-hidden shadow w-full max-w-lg">
-                <FinalCanvas
-                  ref={stageRef}
-                  background={selectedBg}
-                  cleanPhotos={cleanPhotos}
-                  stickers={stickers}
-                  width={canvasSize.width}
-                  height={((canvasSize.width - 60) / 2 / 0.75) * 2 + 60}
-                />
-              </div>
-
-              <div className="flex flex-col items-center gap-2">
-                <p className="text-sm text-gray-600">Scan to download</p>
-                {photoUrl && <QRCodeCanvas value={photoUrl} size={160} />}
-              </div>
-            </div>
-
-            <div className="flex justify-between w-full mt-4">
-              <button
-                onClick={handleDownload}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold"
-              >
-                🖨️ Print
-              </button>
-              <button
-                onClick={handleRetake}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-semibold"
-              >
-                🔙 Home
-              </button>
-            </div>
-          </div>
+          <FinalScreen
+            stageRef={stageRef}
+            background={selectedBg}
+            cleanPhotos={cleanPhotos}
+            stickers={stickers}
+            width={canvasSize.width}
+            photoUrl={photoUrl}
+            onDownload={handleDownload}
+            onHome={handleRetake}
+          />
         )}
       </div>
     </div>

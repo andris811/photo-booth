@@ -4,6 +4,7 @@ import useImage from "use-image";
 import Konva from "konva";
 import { StickerImage } from "./StickerImage";
 import type { Sticker } from "./StickerImage";
+import { getStickerCanvasLayout } from "../utils/layout";
 
 type Props = {
   cleanPhotos: string[];
@@ -52,10 +53,8 @@ export function StickerOverlay({
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  const padding = 20;
-  const photoWidth = (canvasSize.width - padding * 3) / 2;
-  const photoHeight = photoWidth / 0.75;
-  const totalHeight = photoHeight * 2 + padding * 3;
+  const { padding, photoWidth, photoHeight, totalHeight } =
+    getStickerCanvasLayout(canvasSize.width);
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
