@@ -53,6 +53,13 @@ export function StickerOverlay({
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  useEffect(() => {
+    if (stageWrapperRef.current) {
+      stageWrapperRef.current.dataset.canvasWidth = canvasSize.width.toString();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasSize.width]);
+
   const { padding, photoWidth, photoHeight, totalHeight } =
     getStickerCanvasLayout(canvasSize.width);
 

@@ -24,6 +24,7 @@ type Props = {
   onSelect: () => void;
   onDelete: () => void;
   onChange: (newProps: Partial<Sticker>) => void;
+  readonly?: boolean;
 };
 
 export function StickerImage({
@@ -32,6 +33,7 @@ export function StickerImage({
   onSelect,
   onDelete,
   onChange,
+  readonly,
 }: Props) {
   const [image] = useImage(sticker.src, "anonymous");
   const groupRef = useRef<Konva.Group | null>(null);
@@ -51,16 +53,20 @@ export function StickerImage({
       <Group
         x={sticker.x}
         y={sticker.y}
-        draggable
         ref={groupRef}
-        onClick={onSelect}
-        onTap={onSelect}
+        draggable={!readonly}
+        onClick={readonly ? undefined : onSelect}
+        onTap={readonly ? undefined : onSelect}
         rotation={sticker.rotation}
         scaleX={sticker.scale}
         scaleY={sticker.scale}
-        onDragEnd={(e) => {
-          onChange({ x: e.target.x(), y: e.target.y() });
-        }}
+        onDragEnd={
+          readonly
+            ? undefined
+            : (e) => {
+                onChange({ x: e.target.x(), y: e.target.y() });
+              }
+        }
         onTransformEnd={() => {
           if (!groupRef.current) return;
           const node = groupRef.current;
@@ -114,7 +120,7 @@ export function StickerImage({
         )}
       </Group>
 
-      {isSelected && (
+      {!readonly && isSelected && (
         <Transformer
           ref={trRef}
           rotateEnabled

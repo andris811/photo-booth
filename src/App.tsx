@@ -33,17 +33,20 @@ function App() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const stageWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 400, height: 533 });
+  // const [canvasSize, setCanvasSize] = useState({ width: 400, height: 533 });
+  const finalCanvasWidth = parseInt(stageWrapperRef.current?.dataset.canvasWidth || "800");
 
+  // this might remove if no need for it ----------------------------------------------------------------<-----<-----
   useLayoutEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
-        const width = containerRef.current.offsetWidth;
-        const height = (width / 3) * 4;
-        setCanvasSize({ width, height });
+        // const width = containerRef.current.offsetWidth;
+        // const height = (width / 3) * 4;
+        // setCanvasSize({ width, height });
       }
     };
     updateSize();
@@ -214,7 +217,7 @@ function App() {
               setScreen("final");
             }}
             onBack={() => setScreen("select-bg")}
-            stageWrapperRef={{ current: null }} // deprecated but retained for prop compatibility
+            stageWrapperRef={stageWrapperRef} // deprecated but retained for prop compatibility
           />
         )}
 
@@ -224,7 +227,7 @@ function App() {
             background={selectedBg}
             cleanPhotos={cleanPhotos}
             stickers={stickers}
-            width={canvasSize.width}
+            width={finalCanvasWidth}
             photoUrl={photoUrl}
             onDownload={handleDownload}
             onHome={handleRetake}

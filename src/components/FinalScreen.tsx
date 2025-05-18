@@ -105,6 +105,7 @@ export function FinalScreen({
                   onSelect={() => {}}
                   onDelete={() => {}}
                   onChange={() => {}}
+                  readonly={true} 
                 />
               ))}
             </Layer>
