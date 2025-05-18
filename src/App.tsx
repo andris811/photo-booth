@@ -1,16 +1,14 @@
 import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
-import useImage from "use-image";
-import Konva from "konva";
-import { Stage, Layer, Rect, Image as KonvaImage, Text } from "react-konva";
-
-import { StickerImage } from "./components/StickerImage";
-import type { Sticker } from "./components/StickerImage";
-import { getCoverSize } from "./utils/layout";
 import { uploadToFastApi } from "./services/uploadToFastApi";
 import { CameraScreen } from "./components/CameraScreen";
 import { ReviewScreen } from "./components/ReviewScreen";
 import { BackgroundSelection } from "./components/BackgroundSelection";
+import { cropCenterPortrait } from "./utils/imageUtils";
+import { StickerOverlay } from "./components/StickerOverlay";
+import { FinalCanvas } from "./components/FinalCanvas";
+import type { Sticker } from "./components/StickerImage";
+import Konva from "konva";
 
 type Screen =
   | "welcome"
@@ -24,26 +22,17 @@ type Screen =
 function App() {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
-  const [bgImage] = useImage(selectedBg ?? "", "anonymous");
   const [cleanPhotos, setCleanPhotos] = useState<string[]>([]);
-
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [photoImage] = useImage(capturedImage ?? "", "anonymous");
-
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [stickers, setStickers] = useState<Sticker[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const [qrVisible, setQrVisible] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-
   const [photos, setPhotos] = useState<string[]>([]);
   const [retakeIndexes, setRetakeIndexes] = useState<number[] | null>(null);
 
+  const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+  const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<Konva.Stage | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 400, height: 533 });
-  const [canvasKey, setCanvasKey] = useState(0);
 
   useLayoutEffect(() => {
     const updateSize = () => {
@@ -58,37 +47,9 @@ function App() {
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
-  useEffect(() => {
-    if (
-      bgImage?.width &&
-      bgImage?.height &&
-      canvasSize.width > 0 &&
-      canvasSize.height > 0
-    ) {
-      setCanvasKey((prev) => prev + 1);
-    }
-  }, [
-    bgImage?.src,
-    bgImage?.width,
-    bgImage?.height,
-    canvasSize.width,
-    canvasSize.height,
-  ]);
-
   const handleRetakePhotos = (indexes: number[]) => {
     setRetakeIndexes(indexes);
     setScreen("camera");
-  };
-
-  const handleRetakeConfirm = (newShots: string[]) => {
-    if (!retakeIndexes) return;
-    const updated = [...photos];
-    retakeIndexes.forEach((index, i) => {
-      updated[index] = newShots[i];
-    });
-    setPhotos(updated);
-    setRetakeIndexes(null);
-    setScreen("review");
   };
 
   const removeBackgroundFromBase64 = async (
@@ -108,18 +69,59 @@ function App() {
   };
 
   useEffect(() => {
-    const processBackgrounds = async () => {
-      if (screen === "remove-bg" && cleanPhotos.length === 0) {
-        const cleaned = await Promise.all(
-          photos.map((photo) => removeBackgroundFromBase64(photo))
+    if (
+      screen === "remove-bg" &&
+      cleanPhotos.length === 0 &&
+      photos.length === 4
+    ) {
+      (async () => {
+        const cropped = await Promise.all(photos.map(cropCenterPortrait));
+        const removed = await Promise.all(
+          cropped.map(removeBackgroundFromBase64)
         );
-        setCleanPhotos(cleaned);
+        setCleanPhotos(removed);
         setScreen("select-bg");
-      }
-    };
-
-    processBackgrounds();
+      })();
+    }
   }, [screen, photos, cleanPhotos.length]);
+
+  useEffect(() => {
+  if (screen === "final" && !photoUrl) {
+    const timeout = setTimeout(() => {
+      handleGenerateQR();
+    }, 500); // short delay to let <FinalCanvas /> paint
+
+    return () => clearTimeout(timeout);
+  }
+}, [screen, photoUrl]);
+
+  const handleDownload = () => {
+    const uri = stageRef.current?.toDataURL({ mimeType: "image/png" });
+    if (!uri) return;
+    const link = document.createElement("a");
+    link.href = uri;
+    link.download = "hermes-photo.png";
+    link.click();
+  };
+
+  const handleGenerateQR = async () => {
+    const uri = stageRef.current?.toDataURL({ mimeType: "image/png" });
+    if (!uri) return;
+    const blob = await (await fetch(uri)).blob();
+    const url = await uploadToFastApi(blob);
+    if (url) setPhotoUrl(url);
+    else alert("Upload failed.");
+  };
+
+  const handleRetake = () => {
+    setScreen("welcome");
+    setPhotos([]);
+    setCleanPhotos([]);
+    setSelectedBg(null);
+    setStickers([]);
+    setSelectedId(null);
+    setPhotoUrl(null);
+  };
 
   return (
     <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6">
@@ -150,11 +152,10 @@ function App() {
                 });
                 setPhotos(updated);
                 setRetakeIndexes(null);
-                setScreen("review");
               } else {
                 setPhotos(captured);
-                setScreen("review");
               }
+              setScreen("review");
             }}
           />
         )}
@@ -163,9 +164,7 @@ function App() {
           <ReviewScreen
             photos={photos}
             onRetake={handleRetakePhotos}
-            onConfirm={() => {
-              setScreen("remove-bg");
-            }}
+            onConfirm={() => setScreen("remove-bg")}
           />
         )}
 
@@ -174,17 +173,71 @@ function App() {
             <p className="text-xl font-medium text-gray-600">
               Removing Backgrounds...
             </p>
-            <p className="text-sm text-gray-400">This may take a few seconds</p>
+            <p className="text-sm text-gray-400">Please wait a moment</p>
           </div>
         )}
 
-        {screen === "select-bg" && cleanPhotos.length === 4 && (
+        {screen === "select-bg" && (
           <BackgroundSelection
             cleanPhotos={cleanPhotos}
             selectedBg={selectedBg}
             setSelectedBg={setSelectedBg}
             onConfirm={() => setScreen("stickers")}
           />
+        )}
+
+        {screen === "stickers" && selectedBg && (
+          <StickerOverlay
+            cleanPhotos={cleanPhotos}
+            background={selectedBg}
+            stickers={stickers}
+            setStickers={setStickers}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            onConfirm={() => {
+              handleGenerateQR(); // prepare QR before final
+              setScreen("final");
+            }}
+            onBack={() => setScreen("select-bg")}
+            stageWrapperRef={{ current: null }} // deprecated, no longer used
+          />
+        )}
+
+        {screen === "final" && selectedBg && (
+          <div className="flex flex-col gap-6 items-center">
+            <div className="flex flex-col md:flex-row gap-6 w-full items-start">
+              <div className="rounded-xl overflow-hidden shadow w-full max-w-lg">
+                <FinalCanvas
+                  ref={stageRef}
+                  background={selectedBg}
+                  cleanPhotos={cleanPhotos}
+                  stickers={stickers}
+                  width={canvasSize.width}
+                  height={((canvasSize.width - 60) / 2 / 0.75) * 2 + 60}
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-sm text-gray-600">Scan to download</p>
+                {photoUrl && <QRCodeCanvas value={photoUrl} size={160} />}
+              </div>
+            </div>
+
+            <div className="flex justify-between w-full mt-4">
+              <button
+                onClick={handleDownload}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold"
+              >
+                🖨️ Print
+              </button>
+              <button
+                onClick={handleRetake}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-semibold"
+              >
+                🔙 Home
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

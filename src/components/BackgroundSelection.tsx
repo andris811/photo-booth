@@ -33,8 +33,13 @@ export function BackgroundSelection({
     const update = () => {
       if (containerRef.current) {
         const width = containerRef.current.offsetWidth;
-        const height = (width / 3) * 4;
-        setCanvasSize({ width, height });
+
+        const padding = 20;
+        const photoWidth = (width - padding * 3) / 2;
+        const photoHeight = photoWidth / 0.75;
+        const totalHeight = photoHeight * 2 + padding * 3;
+
+        setCanvasSize({ width, height: totalHeight });
       }
     };
     update();
@@ -44,13 +49,15 @@ export function BackgroundSelection({
 
   const padding = 20;
   const photoWidth = (canvasSize.width - padding * 3) / 2;
-  const photoHeight = (canvasSize.height - padding * 3) / 2;
+  const photoHeight = photoWidth / 0.75;
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
       {/* Left: Background choices */}
       <div className="w-full md:w-1/3 space-y-4">
-        <p className="text-sm text-gray-600 font-semibold">Choose Background:</p>
+        <p className="text-sm text-gray-600 font-semibold">
+          Choose Background:
+        </p>
         <div className="grid grid-cols-2 gap-2">
           {backgrounds.map((bg) => (
             <img
@@ -75,9 +82,14 @@ export function BackgroundSelection({
       <div className="w-full md:w-2/3">
         <div
           ref={containerRef}
-          className="relative w-full aspect-[3/4] border rounded-xl overflow-hidden shadow bg-gray-100"
+          className="relative w-full border rounded-xl overflow-hidden shadow bg-gray-100"
+          style={{ height: `${canvasSize.height}px` }}
         >
-          <Stage width={canvasSize.width} height={canvasSize.height} ref={stageRef}>
+          <Stage
+            width={canvasSize.width}
+            height={canvasSize.height}
+            ref={stageRef}
+          >
             <Layer>
               {bgImage && (
                 <KonvaImage

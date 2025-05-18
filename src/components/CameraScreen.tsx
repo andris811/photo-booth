@@ -3,7 +3,7 @@ import Webcam from "react-webcam";
 
 type Props = {
   onCaptureComplete: (photos: string[]) => void;
-  count?: number; // 👈 optional prop
+  count?: number;
 };
 
 export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
@@ -15,14 +15,36 @@ export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
   useEffect(() => {
     if (webcamRef.current?.video) {
       webcamRef.current.video.onloadedmetadata = () => {
-        console.log(
-          "Actual video dimensions:",
-          webcamRef.current?.video?.videoWidth,
-          webcamRef.current?.video?.videoHeight
-        );
       };
     }
   }, []);
+
+  const cropToPortrait = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const width = img.width;
+        const height = img.height;
+
+        const targetHeight = height;
+        const targetWidth = (height * 3) / 4; // 3:4 ratio
+        const offsetX = (width - targetWidth) / 2;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, offsetX, 0, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight);
+          resolve(canvas.toDataURL("image/png"));
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      img.src = dataUrl;
+    });
+  };
 
   const captureSequence = async () => {
     if (!webcamRef.current) return;
@@ -34,19 +56,20 @@ export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
       setCountdown(sec);
 
       await new Promise<void>((resolve) => {
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
           sec -= 1;
           setCountdown(sec);
           if (sec === 0) {
             clearInterval(interval);
-            const image = webcamRef.current?.getScreenshot();
-            if (image) photos.push(image);
-            // 👇 Flash effect
-            setFlash(true);
-            setTimeout(() => setFlash(false), 200);
+            const raw = webcamRef.current?.getScreenshot();
+            if (raw) {
+              const cropped = await cropToPortrait(raw);
+              photos.push(cropped);
+            }
 
-            // 👇 Add short delay before next countdown
-            setTimeout(resolve, 900);
+            setFlash(true);
+            setTimeout(() => setFlash(false), 150);
+            setTimeout(resolve, 800);
           }
         }, 1000);
       });
@@ -75,9 +98,14 @@ export function CameraScreen({ onCaptureComplete, count = 4 }: Props) {
           className="absolute inset-0 w-full h-full object-cover"
         />
 
-        {/* Flash overlay */}
+        {/* Camera Frame */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="border-4 border-orange-500 w-2/5 aspect-[3/4] rounded-lg"></div>
+        </div>
+
+        {/* Flash */}
         {flash && (
-          <div className="absolute inset-0 bg-white opacity-70 transition duration-200 pointer-events-none"></div>
+          <div className="absolute inset-0 bg-white opacity-80 transition duration-200 pointer-events-none"></div>
         )}
       </div>
 
